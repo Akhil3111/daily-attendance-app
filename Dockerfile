@@ -1,37 +1,55 @@
-Use the official Python base image
 FROM python:3.12-slim
 
 Install system dependencies for headless Chrome
 RUN apt-get update && apt-get install -y 
 
-wget 
-
 gnupg 
 
-&& wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - 
+wget 
 
-&& echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list 
+unzip 
 
-&& apt-get update && apt-get install -y 
+libnss3 
 
-google-chrome-stable 
+libxss1 
 
---no-install-recommends 
+libappindicator3-1 
 
-&& rm -rf /var/lib/apt/lists/*
+libasound2 
 
-Set the working directory in the container
+libatk-bridge2.0-0 
+
+libgtk-3-0 
+
+libcups2 
+
+libgdk-pixbuf2.0-0 
+
+libgbm1 
+
+libxkbcommon-x11-0 
+
+--no-install-recommends
+
+Install Chrome Browser
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/trusted.gpg.d/google.gpg 
+
+&& echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+
+RUN apt-get update && apt-get install -y google-chrome-stable
+
+Set up working directory
 WORKDIR /app
 
-Copy the requirements file and install dependencies
+Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 Copy the rest of the application code
 COPY . .
 
-Expose the port the Flask app will run on
+Expose the port for the Flask app
 EXPOSE 5000
 
 Set the command to run the Flask app
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["python", "app.py"]
