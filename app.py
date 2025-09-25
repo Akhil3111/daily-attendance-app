@@ -1,14 +1,15 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file for local testing
+# Load environment variables from .env file
 load_dotenv()
 
 import time
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -17,36 +18,27 @@ import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 from twilio.rest import Client
+import os
 
 # Initialize the Flask application and enable CORS
-app = Flask(__name__, static_folder='.')
-CORS(app, resources={r"/*": {"origins": "https://daily-attendance-app-1.onrender.com"}})
-
-# --- SECURITY WARNING ---
-# This is a simplified approach for demonstration purposes.
-# For a production application, use environment variables.
-
-# Your Twilio Credentials
-TWILIO_ACCOUNT_SID = "AC6815bba598db9422efa414b140621f91"
-TWILIO_AUTH_TOKEN = "d53c5f473beeaa94278bcc5f8c3dff08"
-
-# Your Firebase Service Account JSON (entire content as a string)
-# IMPORTANT: This must be a single-line string with escaped newlines (\n)
-FIREBASE_SERVICE_ACCOUNT_JSON = '{"type": "service_account","project_id": "daily-attendance-app-6cf76","private_key_id": "0471d3eae3af36237faaf47d308cf36270e58a01","private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQDfYOD2ToVbfni2\\n5m0z10VTEsV6toT5XaLesT2h/d3mNehMKqddnDQllHC00yvenl8laDIu3WqtyhEs\\nNhUNxSmo5MQc/TKcnhrL32mBbAU7GQtJuExXYzMQj6+0HWKKfrvizWYZFt39zqjv\\nauh9VnRY0js7fm7kfwpm9kg7qpIl/Rg8NQc+7sfUgyIBHpknci7nezk2tP30z8o5\\nvkfnNHWbxxKvGDYqo6m3+Vm7VYJGfM+IhIRDJG9lJyhAKgVIyhbQSnNh6XCQmmsX\\nT2hvJpR6LTh4fzmzMmwZi+jvCqCxe27PaTBvSFS+rLLaHWTAA+PsyTHc950UvsM1\\ntyqxcN27AgMBAAECgf881/nUQb/II/wCiG/g8ALx/0txkyD2cfR5Ne5St3oO7Vr3\\nQ6LtNewauf6z9Qnxzh0ooXXtXjlrbjUWnOGAuh8k6fYnph0SzOmLyzpzuPR+97Ti\\nhDAeeNqIRsOhQ6z1IKRd8dWQRP+YFjx/7fAQRAJQcDgbt1R9OdxSV99lNHJBGwRK\\njPBTSwl1mmHVHgVjON04ss1rlWzBW2p/TTY6HGUjhiF3BeVTUGQZgKr9dT0Wzlvz\\nDddkNjlAuyjuCfOLGLaDQumcEWsdhleOFUbZOVQG/0HBuwjDgZy7caxtxffLbSEJ\\nx7VCUZ0WYXLWc4hiGbrWyZa/6o6tUt/RlMu4kGkCgYEA9B2HzyuvQhX0qXdYStvs\\nKE05BL99c6p6Ic8yEY165FBS0CSC7XukZbYiZutLjLhLTC/XyE2xh/76iwmvV+JX\\n9IYSiwnHDRkxRSP0D8gwI6xPqGOJsASM7A6gxQ9McKJG10mQQkQq/oCd0d3gtDEY\\n9lwZ9BZHSY26q0bnz7IMlXUCgYEA6kDmH/BdT5VlYuSKEC+Ie0VxfpAjtn/9gCig\\ngsoAIH2xVTrhwYwxyByv01eW5sjx3P78/RsS4cnufkpDHJtMxX6Vvd6WMY0fYjR2\\nTdS8GZO8pK6s0irieUgESC3/KgL6MIlT44kDShY4JpRLEFQCHTkBWkggfB9uwFkP\\n4de50G8CgYBn3/T9O9p8pXkRb347hG9uCsYbdhw8zqrfnhnxDCHh6ygB97datIUU\\n3rau0qq4O2eXCLiqPB0yAFa+OSXKoL7Khw526Xcw5KppgE4HNSj+1QCkZ46cPqN0\\ngxj4IXVmbDb2vw/KktU0rKf7OI24PzgfBLvqeFxnOQ7YePiFEX93TQKBgH+sRYBs\\n2f6RF0QR+Wme7oz5KUVou/4wvfKGsgz2maEbwHYKdJavmUZO1EmkuHsqVCA13Z75\\njY4AJ/su8Gr7/Zi6SFTGpyd0mgFFRKFg6/AoxC0hgtG9S9f8N1E7uJGmM8QWZOFj\\ngKZ1e78THeJVVx2kPyd8ni/oVc2B/RUDJaQDAoGBAMwBCCIBssQLoaH3dkinm1Pj\\noYbjr0/5PgsRWkD+TtD0olqU6bjE2dgv6SHweRjWf6g9hTnJkFTnO8Tnd3dhFjnz\\nfk3v48N/9uobAJaenk92RiAkmZ5nfhHgKpuSM1I6hes3Q05dx30sHXC9wlFmIsDs\\nRLR+zmhfsUUu3KdI2dP0\\n-----END PRIVATE KEY-----\\n","client_email": "firebase-adminsdk-fbsvc@daily-attendance-app-6cf76.iam.gserviceaccount.com","client_id": "107598201014476323983","auth_uri": "https://accounts.google.com/o/oauth2/auth","token_uri": "https://oauth2.googleapis.com/token","auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40daily-attendance-app-6cf76.iam.gserviceaccount.com","universe_domain": "googleapis.com"}'
-
-# Hardcoded path for ChromeDriver
-# This path is where Render's system installs the WebDriver.
-CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
+app = Flask(__name__)
+CORS(app)
 
 # Firebase credentials and app initialization
 def initialize_firebase():
-    """Initializes the Firebase Admin SDK from a hardcoded JSON string."""
+    """Initializes the Firebase Admin SDK."""
+    firebase_key_path = "firebase-key.json"
+    if not os.path.exists(firebase_key_path):
+        print(f"Error: Firebase service account key not found at '{firebase_key_path}'.")
+        print("Please download it from the Firebase Console and place it in this directory.")
+        return None
+        
     try:
-        cred = credentials.Certificate(json.loads(FIREBASE_SERVICE_ACCOUNT_JSON))
+        cred = credentials.Certificate(firebase_key_path)
         firebase_admin.initialize_app(cred)
         return firestore.client()
     except Exception as e:
-        print(f"Failed to initialize Firebase from hardcoded string: {e}")
+        print(f"Failed to initialize Firebase: {e}")
         return None
 
 db = initialize_firebase()
@@ -56,7 +48,19 @@ def send_whatsapp_message(to_number, message):
     Sends a WhatsApp message using the Twilio API.
     """
     try:
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        # Get Twilio credentials from environment variables for security.
+        # This prevents hardcoding secrets in your code.
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+
+        if not account_sid or not auth_token:
+            print("Error: Twilio credentials not found in environment variables.")
+            return False
+
+        client = Client(account_sid, auth_token)
+
+        # Your Twilio WhatsApp-enabled phone number
+        # Example: 'whatsapp:+14155238886'
         twilio_number = "whatsapp:+14155238886"
         
         message_sent = client.messages.create(
@@ -83,7 +87,7 @@ def get_attendance_data(username, password):
     
     driver = None
     try:
-        service = ChromeService(executable_path=CHROMEDRIVER_PATH)
+        service = ChromeService(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         print("WebDriver initialized. Navigating to login page...")
@@ -100,6 +104,7 @@ def get_attendance_data(username, password):
         l_button = wait.until(EC.element_to_be_clickable((By.NAME, 'btnLogin')))
         l_button.click()
 
+        # Adding a short delay to allow the page to fully load and pop-ups to appear
         time.sleep(3)
 
         try:
@@ -112,14 +117,17 @@ def get_attendance_data(username, password):
         except TimeoutException:
             print("No pop-up found, continuing...")
         
+        # Adding a small, strategic delay to ensure the dashboard content has time to load
         time.sleep(3)
 
+        # Now we click the button to get the detailed attendance list
         print("Clicking attendance button...")
         a_btn = wait.until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_divAttendance"]/div[3]/a/div[2]'))
         )
         a_btn.click()
         
+        # Now we scrape the total percentage directly from the main attendance page
         total_percentage = "N/A"
         try:
             print("Waiting for total attendance percentage...")
@@ -139,6 +147,8 @@ def get_attendance_data(username, password):
                 ".atten-sub.bus-stops ul li"
         ))
 )
+
+        
         
         attendance_list = []
         for item in attendance_items:
@@ -175,10 +185,6 @@ def get_attendance_data(username, password):
             print("Closing WebDriver.")
             driver.quit()
 
-@app.route('/')
-def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
-
 @app.route('/scrape-attendance', methods=['POST'])
 def scrape_attendance():
     """
@@ -186,35 +192,8 @@ def scrape_attendance():
     It saves credentials to Firestore, scrapes the data, and saves it back.
     """
     if not db:
-        # If Firebase is not initialized, we fall back to a direct scrape.
-        print("Warning: Firebase connection failed. Attempting direct scrape without database storage.")
-        data = request.json
-        username = data.get('username')
-        password = data.get('password')
-        whatsapp_number = data.get('whatsapp')
+        return jsonify({"error": "Firebase is not initialized. Check your service account key."}), 500
 
-        if not username or not password:
-            return jsonify({"error": "Username and password are required."}), 400
-
-        scraped_data = get_attendance_data(username, password)
-        
-        if "error" in scraped_data:
-            return jsonify(scraped_data), 500
-        
-        # Send WhatsApp message even if Firebase is not working.
-        if whatsapp_number:
-            message_body = f"📚 *Daily Attendance Report* 📚\n\n"
-            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\\n\\n"
-            status_emojis = {"Present": "✅ Present", "Absent": "❌ Absent"}
-            message_body += "*Subject-wise Breakdown:*\\n"
-            for subject in scraped_data['subjects']:
-                status_text = status_emojis.get(subject['status'], subject['status'])
-                message_body += f"- {subject['subject']}: {status_text}\\n"
-            send_whatsapp_message(whatsapp_number, message_body)
-
-        return jsonify(scraped_data)
-
-    # --- Firebase is working, proceed with the normal flow. ---
     data = request.json
     username = data.get('username')
     password = data.get('password')
@@ -223,6 +202,7 @@ def scrape_attendance():
     app_id = data.get('appId')
 
     if not username or not password or not user_id or not app_id:
+        # If any of the required fields are missing, it means the request is invalid.
         return jsonify({"error": "Missing required data."}), 400
 
     try:
@@ -246,13 +226,21 @@ def scrape_attendance():
 
         # Send WhatsApp message
         if whatsapp_number:
+            # Create a more readable message format
             message_body = f"📚 *Daily Attendance Report* 📚\n\n"
-            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\\n\\n"
-            status_emojis = {"Present": "✅ Present", "Absent": "❌ Absent"}
-            message_body += "*Subject-wise Breakdown:*\\n"
+            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\n\n"
+            
+            # Use emojis for statuses
+            status_emojis = {
+                "Present": "✅ Present",
+                "Absent": "❌ Absent"
+            }
+            
+            # Create a clean list of subjects with statuses
+            message_body += "*Subject-wise Breakdown:*\n"
             for subject in scraped_data['subjects']:
                 status_text = status_emojis.get(subject['status'], subject['status'])
-                message_body += f"- {subject['subject']}: {status_text}\\n"
+                message_body += f"- {subject['subject']}: {status_text}\n"
                 
             send_whatsapp_message(whatsapp_number, message_body)
 
