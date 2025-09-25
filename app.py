@@ -1,9 +1,5 @@
 import os
 from dotenv import load_dotenv
-
-# Load environment variables from .env file for local testing
-load_dotenv()
-
 import time
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -19,9 +15,12 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from twilio.rest import Client
 
+# Load environment variables from .env file for local testing
+load_dotenv()
+
 # Initialize the Flask application and enable CORS
 app = Flask(__name__, static_folder='.')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "https://daily-attendance-app-1.onrender.com"}})
 
 # Firebase credentials and app initialization
 def initialize_firebase():
@@ -246,4 +245,3 @@ def scrape_attendance():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
