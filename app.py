@@ -9,6 +9,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -186,8 +187,35 @@ def scrape_attendance():
     It saves credentials to Firestore, scrapes the data, and saves it back.
     """
     if not db:
-        return jsonify({"error": "Firebase is not initialized. Check your service account key."}), 500
+        # If Firebase is not initialized, we fall back to a direct scrape.
+        print("Warning: Firebase connection failed. Attempting direct scrape without database storage.")
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+        whatsapp_number = data.get('whatsapp')
 
+        if not username or not password:
+            return jsonify({"error": "Username and password are required."}), 400
+
+        scraped_data = get_attendance_data(username, password)
+        
+        if "error" in scraped_data:
+            return jsonify(scraped_data), 500
+        
+        # Send WhatsApp message even if Firebase is not working.
+        if whatsapp_number:
+            message_body = f"📚 *Daily Attendance Report* 📚\n\n"
+            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\\n\\n"
+            status_emojis = {"Present": "✅ Present", "Absent": "❌ Absent"}
+            message_body += "*Subject-wise Breakdown:*\\n"
+            for subject in scraped_data['subjects']:
+                status_text = status_emojis.get(subject['status'], subject['status'])
+                message_body += f"- {subject['subject']}: {status_text}\\n"
+            send_whatsapp_message(whatsapp_number, message_body)
+
+        return jsonify(scraped_data)
+
+    # --- Firebase is working, proceed with the normal flow. ---
     data = request.json
     username = data.get('username')
     password = data.get('password')
@@ -196,7 +224,6 @@ def scrape_attendance():
     app_id = data.get('appId')
 
     if not username or not password or not user_id or not app_id:
-        # If any of the required fields are missing, it means the request is invalid.
         return jsonify({"error": "Missing required data."}), 400
 
     try:
@@ -220,17 +247,9 @@ def scrape_attendance():
 
         # Send WhatsApp message
         if whatsapp_number:
-            # Create a more readable message format
             message_body = f"📚 *Daily Attendance Report* 📚\n\n"
             message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\\n\\n"
-            
-            # Use emojis for statuses
-            status_emojis = {
-                "Present": "✅ Present",
-                "Absent": "❌ Absent"
-            }
-            
-            # Create a clean list of subjects with statuses
+            status_emojis = {"Present": "✅ Present", "Absent": "❌ Absent"}
             message_body += "*Subject-wise Breakdown:*\\n"
             for subject in scraped_data['subjects']:
                 status_text = status_emojis.get(subject['status'], subject['status'])
@@ -246,4 +265,3 @@ def scrape_attendance():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
