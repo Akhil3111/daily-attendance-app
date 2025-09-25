@@ -3,272 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <title>Daily Attendance Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            margin: 0;
-            background-color: #1f2937;
-            color: #f3f4f6;
+            background-color: #0d1117;
+            color: #c9d1d9;
             overflow: hidden;
         }
-        #root {
-            position: relative;
-            z-index: 10;
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            width: 100vw;
+            height: 100vh;
+        }
+        .dashboard-container {
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 1rem;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            z-index: 100;
-            font-size: 1.5rem;
-            text-align: center;
-        }
-        .loading-overlay p {
-            margin-top: 1rem;
-        }
-        #three-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-        }
-        .dashboard-container {
-            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: rgba(13, 17, 23, 0.6);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
-        .form-input {
-            background-color: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+        .card {
+            background-color: rgba(22, 27, 34, 0.8);
+            border: 1px solid #30363d;
         }
-        .form-input::placeholder {
-            color: rgba(255, 255, 255, 0.7);
+        .status-present {
+            background-color: #238636;
+            color: white;
+        }
+        .status-absent {
+            background-color: #d13232;
+            color: white;
         }
     </style>
 </head>
 <body>
-    <div id="three-canvas"></div>
+    <canvas id="bg-canvas"></canvas>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // The main application component
         const App = () => {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
             const [whatsapp, setWhatsapp] = useState('');
             const [loading, setLoading] = useState(false);
-            const [attendanceData, setAttendanceData] = useState(null);
             const [error, setError] = useState('');
-            const [message, setMessage] = useState('');
+            const [data, setData] = useState(null);
 
-            // Placeholder IDs for local testing
-            const __app_id = "attendance-c1c18";
-            const __user_id = "dummy-user-id";
-
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
+            const handleScrape = async () => {
                 setError('');
-                setMessage('');
-                
+                setData(null);
+                setLoading(true);
+
+                if (!username || !password || !whatsapp) {
+                    setError('Please fill in all fields.');
+                    setLoading(false);
+                    return;
+                }
+
                 try {
-                    const response = await fetch('http://localhost:5000/scrape-attendance', {
+                    const response = await fetch('/scrape-attendance', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            username,
-                            password,
-                            whatsapp,
-                            userId: __user_id,
-                            appId: __app_id
+                            username: username,
+                            password: password,
+                            whatsapp: whatsapp,
+                            userId: "some_unique_id", // Dummy ID for demonstration
+                            appId: "your-app-id" // Use your Firebase project ID
                         }),
                     });
 
-                    const data = await response.json();
-                    
+                    const result = await response.json();
                     if (response.ok) {
-                        setAttendanceData(data);
-                        setMessage("Attendance data loaded successfully! A report has been sent to your WhatsApp.");
+                        setData(result);
                     } else {
-                        setError(data.error || 'An error occurred. Please try again.');
+                        setError(result.error || 'An unknown error occurred.');
                     }
                 } catch (err) {
-                    setError('Failed to connect to the server. Please ensure the backend is running.');
+                    setError('Could not connect to the server. Please ensure the backend is running.');
+                    console.error('Fetch error:', err);
                 } finally {
                     setLoading(false);
                 }
             };
 
-            const LoadingOverlay = () => (
-                <div className="loading-overlay">
-                    <div className="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full" role="status">
-                        <span className="visually-hidden">Loading...</span>
-                    </div>
-                    <p>Scraping your attendance data...</p>
-                </div>
-            );
+            useEffect(() => {
+                const canvas = document.getElementById('bg-canvas');
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+
+                const particlesGeometry = new THREE.BufferGeometry();
+                const particlesCount = 500;
+                const posArray = new Float32Array(particlesCount * 3);
+                for(let i = 0; i < particlesCount * 3; i++) {
+                    posArray[i] = (Math.random() - 0.5) * 50;
+                }
+                particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+                const particlesMaterial = new THREE.PointsMaterial({
+                    size: 0.02,
+                    color: 0xffffff,
+                });
+
+                const particleMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+                scene.add(particleMesh);
+
+                camera.position.z = 5;
+
+                const mouse = { x: 0, y: 0 };
+                window.addEventListener('mousemove', (event) => {
+                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                });
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+
+                    particleMesh.rotation.x += 0.0005;
+                    particleMesh.rotation.y += 0.0008;
+
+                    particleMesh.position.x = mouse.x * 2;
+                    particleMesh.position.y = mouse.y * 2;
+
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                const handleResize = () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                };
+            }, []);
 
             return (
-                <div className="dashboard-container p-8 rounded-xl shadow-lg w-full max-w-2xl transform transition-all duration-500 hover:scale-105">
-                    <h1 className="text-3xl font-bold text-center mb-4 text-white">Student Attendance Dashboard</h1>
-                    {loading && <LoadingOverlay />}
-                    {error && <div className="bg-red-500 text-white p-4 rounded-lg mb-4">{error}</div>}
-                    {message && <div className="bg-green-500 text-white p-4 rounded-lg mb-4">{message}</div>}
+                <div className="dashboard-container">
+                    <div className="card w-full max-w-xl rounded-2xl p-8 shadow-2xl">
+                        <h1 className="text-3xl font-bold text-center mb-6">Daily Attendance Dashboard</h1>
+                        <p className="text-center text-sm text-gray-400 mb-6">Enter your details to receive an instant report and subscribe to daily WhatsApp updates.</p>
 
-                    {!attendanceData && (
-                        <form onSubmit={handleLogin} className="space-y-4">
+                        <div className="space-y-4">
                             <div>
-                                <label className="block text-white font-semibold mb-2">Username</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Username (Roll No.)</label>
                                 <input
                                     type="text"
+                                    className="w-full p-2.5 rounded-lg border border-gray-600 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full p-3 rounded-lg form-input focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                                    placeholder="Enter your username"
-                                    required
+                                    placeholder="e.g., 23881A12B2"
                                 />
                             </div>
                             <div>
-                                <label className="block text-white font-semibold mb-2">Password</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
                                 <input
                                     type="password"
+                                    className="w-full p-2.5 rounded-lg border border-gray-600 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full p-3 rounded-lg form-input focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                                    placeholder="Enter your password"
-                                    required
+                                    placeholder="Your password"
                                 />
                             </div>
                             <div>
-                                <label className="block text-white font-semibold mb-2">WhatsApp Number</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp Number</label>
                                 <input
                                     type="tel"
+                                    className="w-full p-2.5 rounded-lg border border-gray-600 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     value={whatsapp}
                                     onChange={(e) => setWhatsapp(e.target.value)}
-                                    className="w-full p-3 rounded-lg form-input focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                                    placeholder="e.g., +14155238886"
-                                    required
+                                    placeholder="e.g., +919876543210"
                                 />
                             </div>
-                            <button
-                                type="submit"
-                                className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                                disabled={loading}
-                            >
-                                {loading ? 'Loading...' : 'Get Attendance Report'}
-                            </button>
-                        </form>
-                    )}
+                        </div>
 
-                    {attendanceData && (
-                        <div>
-                            <div className="bg-white bg-opacity-20 p-6 rounded-xl mb-6 shadow-inner">
-                                <h3 className="text-xl font-bold text-white mb-2 text-center">Summary</h3>
-                                <div className="text-center font-extrabold text-4xl text-green-400">
-                                    {attendanceData.total_percentage || 'N/A'}
+                        <button
+                            onClick={handleScrape}
+                            className={`w-full mt-6 p-3 rounded-lg font-semibold text-white transition-all duration-300 ${loading ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            disabled={loading}
+                        >
+                            {loading ? 'Submitting...' : 'Get My Attendance'}
+                        </button>
+
+                        {error && (
+                            <div className="mt-4 p-3 bg-red-800 text-red-100 rounded-lg text-center font-medium">
+                                {error}
+                            </div>
+                        )}
+
+                        {data && (
+                            <div className="mt-6 p-6 bg-gray-800 rounded-xl border border-gray-700">
+                                <h2 className="text-xl font-bold mb-4 text-center">Your Report</h2>
+                                <div className="text-center mb-4">
+                                    <span className="text-4xl font-extrabold text-blue-400">{data.total_percentage || 'N/A'}</span>
+                                    <p className="text-sm text-gray-400">Total Attendance</p>
+                                </div>
+                                <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                                    {data.subjects.map((subject, index) => (
+                                        <div key={index} className="flex items-center justify-between p-3 rounded-lg transition-all duration-200" style={{ backgroundColor: subject.status === "Present" ? 'rgba(35, 134, 54, 0.2)' : 'rgba(209, 50, 50, 0.2)' }}>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-200">{subject.subject}</p>
+                                                <p className="text-xs text-gray-400">{subject.time_slot}</p>
+                                            </div>
+                                            <div className={`px-2 py-1 rounded-full text-xs font-bold ${subject.status === "Present" ? 'status-present' : 'status-absent'}`}>
+                                                {subject.status}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-
-                            <h3 className="text-xl font-bold text-white mb-4">Subject-wise Breakdown</h3>
-                            <div className="bg-white bg-opacity-20 p-4 rounded-lg shadow-inner">
-                                <ul className="space-y-4">
-                                    {attendanceData.subjects.map((subject, index) => (
-                                        <li key={index} className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-white bg-opacity-20 rounded-lg shadow-sm">
-                                            <div className="flex items-center space-x-3 mb-2 md:mb-0">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${subject.status === 'Present' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {subject.status}
-                                                </span>
-                                                <h4 className="font-semibold text-white">{subject.subject}</h4>
-                                            </div>
-                                            <div className="flex items-center text-gray-200 text-sm md:text-base">
-                                                <span>{subject.time_slot}</span>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             );
         };
-        
-        // Render the App component into the root element
+
         ReactDOM.render(<App />, document.getElementById('root'));
-
-        // Three.js background animation
-        const renderCanvas = () => {
-            const canvas = document.getElementById('three-canvas');
-            if (!canvas) return;
-
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setClearColor(0x000000, 0);
-
-            const geometry = new THREE.BufferGeometry();
-            const vertices = [];
-            for (let i = 0; i < 5000; i++) {
-                vertices.push(Math.random() * 2000 - 1000);
-                vertices.push(Math.random() * 2000 - 1000);
-                vertices.push(Math.random() * 2000 - 1000);
-            }
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const material = new THREE.PointsMaterial({ color: 0xcccccc, size: 1.5 });
-            const particles = new THREE.Points(geometry, material);
-            scene.add(particles);
-
-            camera.position.z = 1000;
-
-            const animate = () => {
-                requestAnimationFrame(animate);
-
-                particles.rotation.y += 0.0005;
-
-                renderer.render(scene, camera);
-            };
-
-            const onWindowResize = () => {
-                const width = window.innerWidth;
-                const height = window.innerHeight;
-                renderer.setSize(width, height);
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-            };
-
-            window.addEventListener('resize', onWindowResize);
-            animate();
-        };
-
-        window.onload = renderCanvas;
     </script>
 </body>
 </html>
