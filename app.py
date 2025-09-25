@@ -1,11 +1,11 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from .env file for local testing
 load_dotenv()
 
 import time
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -18,27 +18,25 @@ import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 from twilio.rest import Client
-import os
 
 # Initialize the Flask application and enable CORS
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.')
 CORS(app)
 
 # Firebase credentials and app initialization
 def initialize_firebase():
-    """Initializes the Firebase Admin SDK."""
-    firebase_key_path = "firebase-key.json"
-    if not os.path.exists(firebase_key_path):
-        print(f"Error: Firebase service account key not found at '{firebase_key_path}'.")
-        print("Please download it from the Firebase Console and place it in this directory.")
+    """Initializes the Firebase Admin SDK from a JSON string in an environment variable."""
+    service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    if not service_account_json:
+        print("Error: FIREBASE_SERVICE_ACCOUNT environment variable not found.")
         return None
-        
+    
     try:
-        cred = credentials.Certificate(firebase_key_path)
+        cred = credentials.Certificate(json.loads(service_account_json))
         firebase_admin.initialize_app(cred)
         return firestore.client()
     except Exception as e:
-        print(f"Failed to initialize Firebase: {e}")
+        print(f"Failed to initialize Firebase from environment variable: {e}")
         return None
 
 db = initialize_firebase()
@@ -49,7 +47,6 @@ def send_whatsapp_message(to_number, message):
     """
     try:
         # Get Twilio credentials from environment variables for security.
-        # This prevents hardcoding secrets in your code.
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
 
@@ -60,7 +57,6 @@ def send_whatsapp_message(to_number, message):
         client = Client(account_sid, auth_token)
 
         # Your Twilio WhatsApp-enabled phone number
-        # Example: 'whatsapp:+14155238886'
         twilio_number = "whatsapp:+14155238886"
         
         message_sent = client.messages.create(
@@ -104,7 +100,6 @@ def get_attendance_data(username, password):
         l_button = wait.until(EC.element_to_be_clickable((By.NAME, 'btnLogin')))
         l_button.click()
 
-        # Adding a short delay to allow the page to fully load and pop-ups to appear
         time.sleep(3)
 
         try:
@@ -117,17 +112,14 @@ def get_attendance_data(username, password):
         except TimeoutException:
             print("No pop-up found, continuing...")
         
-        # Adding a small, strategic delay to ensure the dashboard content has time to load
         time.sleep(3)
 
-        # Now we click the button to get the detailed attendance list
         print("Clicking attendance button...")
         a_btn = wait.until(
             EC.element_to_be_clickable((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_divAttendance"]/div[3]/a/div[2]'))
         )
         a_btn.click()
         
-        # Now we scrape the total percentage directly from the main attendance page
         total_percentage = "N/A"
         try:
             print("Waiting for total attendance percentage...")
@@ -147,8 +139,6 @@ def get_attendance_data(username, password):
                 ".atten-sub.bus-stops ul li"
         ))
 )
-
-        
         
         attendance_list = []
         for item in attendance_items:
@@ -184,6 +174,10 @@ def get_attendance_data(username, password):
         if driver:
             print("Closing WebDriver.")
             driver.quit()
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/scrape-attendance', methods=['POST'])
 def scrape_attendance():
@@ -228,7 +222,7 @@ def scrape_attendance():
         if whatsapp_number:
             # Create a more readable message format
             message_body = f"📚 *Daily Attendance Report* 📚\n\n"
-            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\n\n"
+            message_body += f"✅ Total Attendance: *{scraped_data['total_percentage']}*\\n\\n"
             
             # Use emojis for statuses
             status_emojis = {
@@ -237,10 +231,10 @@ def scrape_attendance():
             }
             
             # Create a clean list of subjects with statuses
-            message_body += "*Subject-wise Breakdown:*\n"
+            message_body += "*Subject-wise Breakdown:*\\n"
             for subject in scraped_data['subjects']:
                 status_text = status_emojis.get(subject['status'], subject['status'])
-                message_body += f"- {subject['subject']}: {status_text}\n"
+                message_body += f"- {subject['subject']}: {status_text}\\n"
                 
             send_whatsapp_message(whatsapp_number, message_body)
 
@@ -252,3 +246,4 @@ def scrape_attendance():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
